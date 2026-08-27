@@ -74,7 +74,7 @@ using namespace std;
     #define LOG(...)
 #endif
 
-#if defined(BSD) || defined(__BSD__)
+#if !defined(__CYGWIN__) && (defined(BSD) || defined(__BSD__))
     #define HAVE_SIN_LEN
 #endif
 
