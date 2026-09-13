@@ -106,7 +106,7 @@ namespace {
         decltype(fn(args...)) result;
         do {
             result = fn(args...);
-        } while (result == -1 && SOCK_ERRNO == SOCK_EINTR);
+        } while (static_cast<int>(result) == -1 && SOCK_ERRNO == SOCK_EINTR);
 
         return result;
     }
@@ -157,7 +157,8 @@ namespace {
     }
 
     bool encodeSockaddr(const sockaddr* saddr, Address& addr, socklen_t len) {
-        if (static_cast<size_t>(len) < sizeof(sockaddr_in) || saddr->sa_family != AF_INET) return false;
+        if (static_cast<size_t>(len) < sizeof(sockaddr_in) || saddr->sa_family != AF_INET)
+            return false;
         const auto saddr4 = reinterpret_cast<const sockaddr_in*>(saddr);
 
         addr.ip = ntohl(saddr4->sin_addr.s_addr);
@@ -737,16 +738,16 @@ void NetworkSession::HandleSocketConnect(MsgSocketConnectRequest& request, MsgRe
     if (withRetry(connect, sock, reinterpret_cast<sockaddr*>(saddr.get()), saddrLen) == 0) return;
 
     if ((SOCK_ERRNO != SOCK_EINPROGRESS && SOCK_ERRNO != SOCK_EALREADY
-        #ifdef _WIN32
-           &&  SOCK_ERRNO != WSAEWOULDBLOCK
-        #endif
-    ) || !ctx.blocking) {
+#ifdef _WIN32
+         && SOCK_ERRNO != WSAEWOULDBLOCK
+#endif
+         ) ||
+        !ctx.blocking) {
         resp.err = NetworkCodes::errnoToPalm(SOCK_ERRNO);
         return;
     }
 
-    pollfd fds[] = {
-        {.fd = sock, .events = POLLRDNORM | POLLWRNORM, .revents = 0}};
+    pollfd fds[] = {{.fd = sock, .events = POLLRDNORM | POLLWRNORM, .revents = 0}};
 
     switch (withRetry(poll, fds, 1, normalizeTimeout(request.timeout))) {
         case -1: {
@@ -899,7 +900,7 @@ void NetworkSession::HandleSocketSend(MsgSocketSendRequest& request, const Buffe
         }
 
         pollfd fds[] = {{.fd = sock, .events = 0, .revents = 0}};
-        fds[0].events =  (flags & MSG_OOB) ? POLLWRBAND : POLLWRNORM;
+        fds[0].events = (flags & MSG_OOB) ? POLLWRBAND : POLLWRNORM;
 
         switch (withRetry(poll, fds, 1, static_cast<int>(timeout - (now - timestampStart)))) {
             case -1: {
